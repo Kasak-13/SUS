@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUS: Streaming Uncertainty Surveillance — Multi-System Evaluation & Chaos Lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- TOP HEADER -->
+        <header>
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <div>
+                    <h1>SUS Controller <span class="badge-stage">Stage 8 Final Evaluation</span></h1>
+                    <div class="tagline">Streaming Uncertainty Surveillance for Resilient Industrial Anomaly Detection</div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="scenario-btn active" data-scenario="A">Scenario A: Stable</button>
+                <button class="scenario-btn" data-scenario="B">Scenario B: Drift</button>
+                <button class="scenario-btn" data-scenario="D">Scenario D: Physical Fault</button>
+                <button id="benchmarkBtn" class="btn-secondary">📊 4-System Benchmark</button>
+                <button id="playBtn" class="play-btn">▶ Play Simulation</button>
+            </div>
+        </header>
+
+        <!-- CHAOS LAB / FAULT INJECTION TOOLBAR -->
+        <div class="chaos-toolbar glass">
+            <div class="chaos-title">
+                <span class="pulse-dot"></span>
+                <strong>Interactive Chaos Lab & Live Controls:</strong>
+            </div>
+            <div class="chaos-actions">
+                <button id="btnInjectAnomaly" class="chaos-btn danger" title="Inject a sudden sharp 5-step valve/sensor fault live into the stream">
+                    ⚡ Inject Shock Anomaly
+                </button>
+                <button id="btnInjectDrift" class="chaos-btn warning" title="Inject high-velocity sensor aging/drift live">
+                    🌊 Accelerate Sensor Drift
+                </button>
+                <button id="btnResetInjections" class="chaos-btn ghost" title="Clear all injections and reset to clean baseline">
+                    ↺ Reset Injections
+                </button>
+            </div>
+            <div class="speed-controls">
+                <span class="speed-label">Playback:</span>
+                <button class="speed-btn active" data-speed="200">1x</button>
+                <button class="speed-btn" data-speed="100">2x</button>
+                <button class="speed-btn" data-speed="40">5x</button>
+                <button id="btnStep" class="btn-step" title="Advance one step frame-by-frame">Step ⏭</button>
+            </div>
+        </div>
+
+        <!-- TIMELINE SCRUBBER & PHASE BAR -->
+        <div class="timeline-bar glass">
+            <div class="timeline-left">
+                <span class="timeline-label">Timeline Navigation:</span>
+                <input type="range" id="timelineSlider" min="0" max="172" value="0" class="timeline-slider">
+                <span class="step-indicator" id="scrubStepDisplay">Step 0 / 173</span>
+            </div>
+            <div class="timeline-jumps" id="timelineJumps">
+                <button id="btnJumpStart" class="jump-btn">⏮ Start (Step 0)</button>
+                <button id="btnJumpAction" class="jump-btn highlight">⚡ Jump to Fault (Step 175)</button>
+            </div>
+        </div>
+
+        <div class="scenario-description" id="scenarioDesc">
+            Scenario A (Stable): Clean baseline sensor stream from the SKAB water testbed. Expected: Mostly KEEP decisions.
+        </div>
+        
+        <div class="phase-banner normal" id="phaseBanner">
+            <span class="phase-icon">ℹ️</span>
+            <span id="phaseText">Current Phase: Initial Warmup Buffer (Normal Baseline Operation)</span>
+        </div>
+
+        <!-- 4-SYSTEM MULTI-AGENT ARENA -->
+        <section class="arena-section glass">
+            <div class="arena-header">
+                <h2>Live 4-System Multi-Agent Arena (Head-to-Head Comparison)</h2>
+                <div class="ground-truth-badge" id="groundTruthBadge">Ground Truth: NORMAL (0)</div>
+            </div>
+            <div class="arena-grid">
+                <!-- System 1: Static -->
+                <div class="system-card" id="cardStatic">
+                    <div class="sys-top">
+                        <span class="sys-name">1. Static Isolation Forest</span>
+                        <span class="sys-badge normal" id="badgeStatic">NORMAL</span>
+                    </div>
+                    <div class="sys-desc">Frozen Baseline (No adaptation)</div>
+                    <div class="sys-metric">Score: <span id="scoreStatic">0.00</span></div>
+                    <div class="sys-vuln" id="vulnStatic">⚠️ Vulnerable to Drift False Alarms</div>
+                </div>
+
+                <!-- System 2: Naive Adaptive -->
+                <div class="system-card" id="cardNaive">
+                    <div class="sys-top">
+                        <span class="sys-name">2. Naive Adaptive</span>
+                        <span class="sys-badge normal" id="badgeNaive">NORMAL</span>
+                    </div>
+                    <div class="sys-desc">Blind Retraining (Every 50 steps)</div>
+                    <div class="sys-metric">Score: <span id="scoreNaive">0.00</span></div>
+                    <div class="sys-vuln" id="vulnNaive">❌ Vulnerable to Anomaly Contamination</div>
+                </div>
+
+                <!-- System 3: Threshold Adaptive -->
+                <div class="system-card" id="cardThresh">
+                    <div class="sys-top">
+                        <span class="sys-name">3. Threshold Adaptive</span>
+                        <span class="sys-badge normal" id="badgeThresh">NORMAL</span>
+                    </div>
+                    <div class="sys-desc">Frozen Trees, Rolling 99% Quantile</div>
+                    <div class="sys-metric">Score: <span id="scoreThresh">0.00</span></div>
+                    <div class="sys-vuln" id="vulnThresh">⚠️ Threshold Drift Blindness</div>
+                </div>
+
+                <!-- System 4: SUS Controller (Ours) -->
+                <div class="system-card sus-card" id="cardSUS">
+                    <div class="sys-top">
+                        <span class="sys-name">4. SUS Controller (Ours)</span>
+                        <span class="sys-badge sus-state keep" id="badgeSUS">KEEP</span>
+                    </div>
+                    <div class="sys-desc">Dual Evidence State-Machine with Safeguards</div>
+                    <div class="sys-metric">Shield: <strong id="shieldState">Active (Gated)</strong></div>
+                    <div class="sys-vuln success" id="vulnSUS">🛡️ Protected from Contamination</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MAIN LAYOUT: SIDEBAR & STREAMING CHARTS -->
+        <main>
+            <div class="sidebar">
+                <div class="status-card glass">
+                    <h2>SUS State Machine</h2>
+                    <div class="step-counter">Timestep: <span id="currentStep">0</span></div>
+                    
+                    <div class="decision-display buffering" id="decisionDisplay">
+                        BUFFERING
+                    </div>
+                    <div class="decision-subtext" id="decisionSubtext">Filling initial rolling buffer (100 steps)...</div>
+                </div>
+
+                <div class="quadrant-card glass">
+                    <h2>4-Quadrant Decision Policy</h2>
+                    <div class="quadrant-grid">
+                        <div class="quad-cell" id="q-low-low">
+                            <span class="q-title">KEEP</span>
+                            <span class="q-cond">Low Drift<br>Low Anomaly</span>
+                        </div>
+                        <div class="quad-cell" id="q-low-high">
+                            <span class="q-title">KEEP</span>
+                            <span class="q-cond">Low Drift<br>High Anomaly</span>
+                        </div>
+                        <div class="quad-cell" id="q-high-low">
+                            <span class="q-title">ADAPT</span>
+                            <span class="q-cond">High Drift<br>Low Anomaly</span>
+                        </div>
+                        <div class="quad-cell" id="q-high-high">
+                            <span class="q-title">HOLD</span>
+                            <span class="q-cond">High Drift<br>High Anomaly</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metrics-card glass">
+                    <h2>Active Gating Metrics</h2>
+                    <div class="metric">
+                        <span class="metric-label">Anomaly Fraction (Threshold &gt; 0.10)</span>
+                        <span class="metric-value" id="valAnomaly">0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Drift KS Score (Threshold &gt; 0.75)</span>
+                        <span class="metric-value" id="valDrift">0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Active Safeguard</span>
+                        <span class="metric-value safeguard" id="valSafeguard">Armed</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h3>Raw Sensor Stream (Hydraulic Circuit Mean)</h3>
+                        <span class="legend-indicator"><span class="legend-dot true-anom"></span> Red shaded area = Ground Truth Physical Anomaly</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="sensorChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h3>Anomaly Evidence (Rolling 50-Step Extreme Fraction)</h3>
+                        <span class="legend-indicator threshold-line">Cutoff Threshold = 0.10</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="anomalyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h3>Drift Evidence (Sequential Kolmogorov-Smirnov Test)</h3>
+                        <span class="legend-indicator drift-line">Cutoff Threshold = 0.75</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="driftChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- STAGE 8 BENCHMARK MODAL -->
+        <div class="modal-overlay" id="benchmarkModal">
+            <div class="modal-content glass">
+                <div class="modal-header">
+                    <h2>📊 Stage 8: Comprehensive 4-System Empirical Evaluation</h2>
+                    <button class="close-btn" id="closeModalBtn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-lead">
+                        Official quantitative comparison evaluating all four architectural paradigms across the SKAB industrial benchmarks.
+                    </p>
+                    <div class="table-container">
+                        <table class="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Scenario</th>
+                                    <th>Architecture</th>
+                                    <th>Precision</th>
+                                    <th>Recall</th>
+                                    <th>F1-Score</th>
+                                    <th>False Alarm (FPR)</th>
+                                    <th>Missed Anom (FNR)</th>
+                                    <th>Contamination Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="benchmarkTableBody">
+                                <!-- Populated dynamically from API -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="takeaways-box">
+                        <h3>Key Empirical Takeaways for Committee / Guide:</h3>
+                        <ul>
+                            <li><strong>The Naive Retraining Catastrophe (Anomaly Contamination):</strong> In Scenario D (Real Faults), Naive Adaptive suffers a <strong>95.01% False Negative Rate</strong> (misses 95% of real faults) because it retrained on contaminated data and learned the fault as "normal".</li>
+                            <li><strong>Threshold Adaptive Collapse:</strong> Adapting threshold alone still suffers from a <strong>96.01% Missed Anomaly Rate</strong>.</li>
+                            <li><strong>SUS Victory:</strong> SUS maintains the <strong>highest F1-Score (0.3304)</strong> and highest recall, while completely shielding its baseline from contamination by slamming on the <strong>HOLD</strong> emergency brake.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

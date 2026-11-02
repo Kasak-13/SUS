@@ -1,0 +1,13 @@
+Scenario,Detector,Precision,Recall,F1_Score,False_Positive_Rate (FPR),False_Negative_Rate (FNR),Runtime(s)
+A (Stable Clean),1. Static (Frozen),0.0,0.0,0.0,0.052,0.0,0.92
+A (Stable Clean),2. Naive Adaptive,0.0,0.0,0.0,0.0058,0.0,1.23
+A (Stable Clean),3. Threshold Adaptive,0.0,0.0,0.0,0.0347,0.0,0.97
+A (Stable Clean),4. SUS Controller (Ours),0.0,0.0,0.0,0.0289,0.0,3.78
+B (Gradual Drift),1. Static (Frozen),0.0,0.0,0.0,0.0636,0.0,0.89
+B (Gradual Drift),2. Naive Adaptive,0.0,0.0,0.0,0.0173,0.0,1.16
+B (Gradual Drift),3. Threshold Adaptive,0.0,0.0,0.0,0.0462,0.0,0.91
+B (Gradual Drift),4. SUS Controller (Ours),0.0,0.0,0.0,0.0289,0.0,18.56
+D (Physical Anomaly),1. Static (Frozen),0.6127,0.217,0.3204,0.159,0.783,18.58
+D (Physical Anomaly),2. Naive Adaptive,0.8,0.0499,0.0939,0.0145,0.9501,22.34
+D (Physical Anomaly),3. Threshold Adaptive,0.6154,0.0399,0.0749,0.0289,0.9601,3.92
+D (Physical Anomaly),4. SUS Controller (Ours),0.5595,0.2344,0.3304,0.2139,0.7656,19.59
