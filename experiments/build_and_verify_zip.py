@@ -41,7 +41,8 @@ with open(extracted_sus_detector, 'r', encoding='utf-8') as f:
 
 assert 'class SUSResult(tuple):' in detector_content, "SUSResult class missing from extracted zip!"
 assert 'current_threshold = float(self.anomaly_threshold)' in detector_content, "Versioned threshold capture missing!"
-assert 'if decision != \'HOLD\':' in detector_content, "HOLD exclusion safeguard missing!"
+assert 'if decision == \'HOLD\':' in detector_content, "HOLD exclusion safeguard missing!"
+assert 'candidate_anom_frac <= self.controller.anomaly_fraction_threshold' in detector_content, "ADAPT buffer purity gate missing!"
 
 # Inspect extracted src/controller.py
 extracted_controller = os.path.join(temp_extract_dir, 'src', 'controller.py')
