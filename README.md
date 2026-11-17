@@ -51,25 +51,28 @@ Modern industrial Cyber-Physical Systems (CPS)—such as water distribution test
 ```
 
 ### 1. Drift Evidence: Sequential Kolmogorov-Smirnov (KS) Test
-Unlike historical-distance drift monitors that compare streaming data against an outdated initial training set, SUS tracks **distributional momentum**. It continuously evaluates adjacent sliding windows ($W_{t-1}$ vs. $W_t$) using the non-parametric two-sample Kolmogorov-Smirnov test:
+Unlike historical-distance drift monitors that compare streaming data against an outdated initial training set, SUS tracks **distributional momentum**. It continuously evaluates adjacent sliding windows ($W_{t-1}$ vs. $W_t$, with $W = 50$) using the non-parametric two-sample Kolmogorov-Smirnov test:
 $$D_{KS} = \sup_x |F_{W_{t-1}}(x) - F_{W_t}(x)|$$
-A drift score crossing $D_{KS} > 0.75$ indicates significant distributional change across features.
+A drift score crossing $D_{KS} > \text{DRIFT\_THRESHOLD}$ ($0.75$) indicates statistically significant distributional change between consecutive windows.
 
 ### 2. Anomaly Evidence: Windowed Quantile Fraction
-Rather than relying on noisy, single-point blips, SUS computes the **rolling fraction** of recent observations (over a 50-step window) that violate the strict 99th-percentile anomaly threshold ($\tau = 0.58$) established by the underlying Isolation Forest:
+Rather than relying on noisy, single-point blips, SUS computes the **rolling fraction** of recent observations (over a 50-step window) that violate the strict 99th-percentile anomaly threshold ($\text{ANOMALY\_THRESHOLD} = 0.58$) established by the underlying Isolation Forest:
 $$\text{AnomalyFraction}_t = \frac{1}{W} \sum_{i=0}^{W-1} \mathbb{I}(s_{t-i} > 0.58)$$
-An anomaly fraction $> 0.10$ signifies dense, persistent anomaly activity.
+An anomaly fraction crossing $\text{ANOMALY\_FRACTION\_THRESHOLD} > 0.10$ signifies dense, persistent anomaly activity requiring immediate intervention.
 
 ### 3. The 4-Quadrant Decision Policy
-* **Quadrant 1 (Low Drift, Low Anomaly) $\rightarrow$ `KEEP`:** Normal operation. No update needed.
+* **Quadrant 1 (Low Drift, Low Anomaly) $\rightarrow$ `KEEP`:** Normal operation. Baseline model remains unchanged.
 * **Quadrant 2 (Low Drift, High Anomaly) $\rightarrow$ `KEEP`:** Isolated sensor spike or transient electrical glitch. Alert is logged, but model retraining is blocked.
-* **Quadrant 3 (High Drift, Low Anomaly) $\rightarrow$ `ADAPT`:** Legitimate operational change (e.g. ambient temperature rise or sensor aging). The controller gates and permits the Isolation Forest to update its baseline.
+* **Quadrant 3 (High Drift, Low Anomaly) $\rightarrow$ `ADAPT`:** Legitimate operational change (e.g. ambient temperature rise or gradual sensor wear). The controller gates and permits the Isolation Forest to update its baseline.
 * **Quadrant 4 (High Drift, High Anomaly) $\rightarrow$ `HOLD`:** Persistent physical equipment fault (e.g., valve failure). The controller slams on the emergency brake, locking model weights to prevent **Anomaly Contamination**.
 
-### 4. Stateful Hysteresis Safeguards
-To prevent decision flickering at threshold boundaries, the controller enforces:
-* **`MIN_CONSECUTIVE_OBSERVATIONS = 3`:** Requires 3 consecutive `ADAPT` proposals before retraining is executed.
-* **`HOLD_DURATION = 10`:** Enforces an active 10-step lockdown window once `HOLD` is engaged, preventing contaminated trailing data from poisoning the baseline.
+### 4. Threshold Configuration & Stateful Safeguards
+All controller parameters are unified and centralized in `src/config.py`:
+* **`ANOMALY_THRESHOLD = 0.58`:** Raw Isolation Forest score cutoff (calibrated 99th percentile of training baseline).
+* **`ANOMALY_FRACTION_THRESHOLD = 0.10`:** Minimum windowed fraction of extreme scores required to signal dense anomaly activity.
+* **`DRIFT_THRESHOLD = 0.75`:** Minimum sequential KS distance between adjacent 50-step windows required to indicate drift.
+* **`MIN_CONSECUTIVE_OBSERVATIONS = 3`:** Minimum consecutive `ADAPT` decisions required before retraining is executed, filtering out transient distributional noise.
+* **`HOLD_DURATION = 10`:** Hysteresis lockdown window. Once `HOLD` is engaged, adaptation remains locked for at least 10 consecutive timesteps, preventing trailing contaminated data from poisoning the baseline.
 
 ---
 
@@ -92,25 +95,30 @@ The framework was benchmarked across all 4 architectural paradigms on the Skolte
 | **D (Physical Fault)** | 3. Threshold Adaptive | 61.54% | 3.99% | 0.0749 | 2.89% | **96.01% ❌** | **Threshold Collapse** |
 | **D (Physical Fault)** | **4. SUS Controller (Ours)** | **55.95%** | **23.44%** | **0.3304** | **21.39%** | **76.56%** | **PROTECTED (HOLD Shield)** |
 
-### Key Empirical Findings:
-1. **The Contamination Catastrophe:** When exposed to real physical valve faults (Scenario D), Naive Adaptive retrains on contaminated data, suffering a **95.01% False Negative Rate** (misses 95% of real physical faults!).
-2. **SUS Resilience:** SUS engages `HOLD` on 69.2% of the active fault stream, completely preserving baseline purity and achieving the **highest overall F1-Score (0.3304)** and highest recall.
+### Critical Interpretation of Empirical Results:
+1. **The Contamination Collapse:** When exposed to real physical valve faults (Scenario D), continuous Naive Adaptive retrains on contaminated data, suffering a catastrophic **95.01% False Negative Rate** (missing 95% of real physical faults because the fault is normalized into the baseline).
+2. **SUS Contamination Resistance:** SUS locks down in `HOLD` across 69.2% of the active fault stream, preventing the baseline from absorbing contaminated data and maintaining the highest F1-Score (**0.3304**) and highest recall (**23.44%**) among all four systems.
+3. **Rigorous Context on False Negatives:** **SUS does not eliminate missed anomalies.** The underlying frozen Isolation Forest has an intrinsic detection limitation on raw SKAB physical faults (~21.7% base recall, meaning a 78.30% inherent False Negative Rate). SUS's specific achievement is **averting the severe degradation to 95.01% caused by anomaly contamination**, preserving the base model's capacity (FNR: 76.56%). Improving base detector sensitivity itself is an orthogonal challenge for future base-model feature engineering.
 
 ---
 
-## 🖥️ Interactive Presentation Dashboard & Chaos Lab
+## 🖥️ Interactive Presentation Dashboard & Simulation Modes
 
-The project features a full-stack, glassmorphism dark-mode web application for live demonstrations:
+The full-stack web dashboard (`demo/`) provides three distinct operational and testing modes:
 
-* **Live 4-System Arena:** Streams sensor telemetry and updates all four competing models simultaneously in real time.
-* **Interactive Chaos Lab:**
-  * **`⚡ Inject Shock Anomaly`:** Injects an instant 5-step valve/pump failure live on stream. Watch Naive Adaptive fail while SUS engages `HOLD` immediately.
-  * **`🌊 Accelerate Sensor Drift`:** Ramps continuous distributional drift to demonstrate live `ADAPT` tracking.
-  * **`↺ Reset Injections`:** Restores clean baseline data instantly.
-* **Timeline Scrubber & Quick Jumps:**
-  * Scrub to any timestep (0 to 747).
-  * `⚡ Jump to Fault (Step 175)` button skips the clean warmup and jumps directly into the physical fault region.
-* **Stage 8 Benchmark Modal:** 1-click modal rendering the official empirical comparison table.
+### 1. Precomputed Benchmark Scenario Replay (Default Mode)
+* **Design & Purpose:** Scenarios A, B, and D from the benchmark are precomputed at server startup so that committee members and viewers can scrub, jump, and inspect the 4-system stream at 60 FPS without execution or retraining lag.
+* **Timeline Scrubber:** Drag smoothly across all 747 timesteps or use the **`⚡ Jump to Fault (Step 175)`** button to skip the stable lead-in and inspect the fault region instantly.
+
+### 2. Interactive Client-Side Chaos Injection (Real-Time Fault Simulation)
+* **`⚡ Inject Shock Anomaly`:** Injects an instant 10-step valve/pump failure into the running stream on-the-fly, visually proving that SUS immediately triggers `HOLD` on sudden dense anomalies.
+* **`🌊 Accelerate Sensor Drift`:** Ramps continuous distributional drift to demonstrate dynamic `ADAPT` gating live.
+* **`↺ Reset Injections`:** Clears live telemetry overrides and restores canonical benchmark data.
+
+### 3. Dynamic Parameterized Simulation API (`POST /api/custom_simulation`)
+* Server-side endpoint allowing users or automated scripts to run all four detectors in parallel over custom synthetic drift rates, anomaly injection timesteps, and anomaly durations.
+
+> **Note on Hardware Telemetry:** The dashboard streams and simulates canonical benchmark records from the Skoltech Anomaly Benchmark (SKAB) hydraulic water testbed; it is not an active physical connection (e.g. MQTT/Modbus) to running plant hardware.
 
 ---
 

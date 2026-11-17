@@ -249,7 +249,8 @@
                         <ul>
                             <li><strong>The Naive Retraining Catastrophe (Anomaly Contamination):</strong> In Scenario D (Real Faults), Naive Adaptive suffers a <strong>95.01% False Negative Rate</strong> (misses 95% of real faults) because it retrained on contaminated data and learned the fault as "normal".</li>
                             <li><strong>Threshold Adaptive Collapse:</strong> Adapting threshold alone still suffers from a <strong>96.01% Missed Anomaly Rate</strong>.</li>
-                            <li><strong>SUS Victory:</strong> SUS maintains the <strong>highest F1-Score (0.3304)</strong> and highest recall, while completely shielding its baseline from contamination by slamming on the <strong>HOLD</strong> emergency brake.</li>
+                            <li><strong>SUS Contamination Resistance:</strong> SUS maintains the <strong>highest F1-Score (0.3304)</strong> and highest recall (23.44%), preventing baseline poisoning by slamming on the <strong>HOLD</strong> emergency brake across 69.2% of the fault stream.</li>
+                            <li><strong>Scientific Nuance on False Negatives:</strong> SUS does not eliminate missed faults (its FNR remains 76.56%, reflecting the underlying Isolation Forest detector's raw scoring sensitivity on the SKAB testbed). SUS's specific victory is <strong>preventing the catastrophic degradation to 95.01% caused by anomaly contamination</strong>.</li>
                         </ul>
                     </div>
                 </div>

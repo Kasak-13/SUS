@@ -37,25 +37,4 @@ This document tracks the progress of the SUS college minor project, summarizing 
   - *Hypothesis Confirmed:* Real adaptation successfully fixes the 0.0015 failure mode by pulling the baseline along with the fast drift, keeping anomaly scores below the threshold and preventing false `HOLD` states.
   - *Safeguards:* Added `MIN_CONSECUTIVE_OBSERVATIONS` and `HOLD_DURATION` to reduce flickering. Scenario D `HOLD` rate successfully strengthened to 69.1% with only 6.6% false `ADAPT`.
 
-### 2. Final Evaluation & Ablation (Stage 8) — COMPLETED
-- **Metrics Comparison Table:** Aggregated Precision, Recall, F1-Score, FPR, and FNR across Scenarios A, B, and D into `results/tables/stage8_four_systems_comparison.csv` for **all FOUR systems**:
-  1. Static Baseline (Frozen on day 1)
-  2. Naive Adaptive (Blind retraining every 50 steps -> 95% False Negative Rate under faults)
-  3. Threshold-only Adaptive (Rolling quantile -> 96% Missed Anomaly Rate)
-  4. SUS Controller (Ours -> Highest F1-score 0.3304, 100% Contamination Protection)
-- **Interactive Multi-System Arena & Chaos Lab Dashboard:** Upgraded `demo/` with:
-  - Live 4-system head-to-head competition stream.
-  - Interactive Chaos Lab controls (`⚡ Inject Shock Anomaly` & `🌊 Accelerate Drift`).
-  - Modal displaying the official Stage 8 Benchmark Table.
-- **Packaging & Delivery:**
-  - `run_dashboard.bat` (1-click Windows runner).
-  - Standalone offline deployment package (`SUS_Project_Presentation_Ready.zip`).
-  - Production `README.md` and complete defense guide (`stage8_presentation_guide.md`).
-  - Pushed to remote GitHub repository (`https://github.com/Kasak-13/SUS`).
 
----
-
-## 🔮 Future Work & Research Paper Extensions
-- **Sudden Regime Change:** Instantaneous step-function shift in normal behavior (as opposed to gradual drift).
-- **Recurring Anomalies:** Periodic instances of the same anomaly type (critical for testing if models falsely learn the anomaly as a new seasonal normal).
-- **Dynamic Window Sizing:** Exploring adaptive window lengths (e.g., ADWIN-style adaptive windowing) to replace fixed 50-step windows.
