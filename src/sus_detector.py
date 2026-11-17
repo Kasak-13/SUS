@@ -15,7 +15,7 @@ class SUSDetector:
         self.drift_monitor = DriftMonitor()
         
         # Internal state
-        self.anomaly_threshold = 0.58
+        self.anomaly_threshold = getattr(config, 'ANOMALY_THRESHOLD', 0.58)
         self.consecutive_adapts = 0
         self.last_drift_score = 0.0
         

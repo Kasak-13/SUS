@@ -61,7 +61,7 @@ def dry_run_scenario(name, X_train, X_stream, y_stream):
     
     # Init Drift Monitor & Controller
     drift_monitor = DriftMonitor(X_train)
-    controller = SUSController(anomaly_threshold=0.58, drift_threshold=0.75)
+    controller = SUSController()
     
     decisions = []
     
