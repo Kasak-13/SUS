@@ -74,6 +74,10 @@ All controller parameters are unified and centralized in `src/config.py`:
 * **`MIN_CONSECUTIVE_OBSERVATIONS = 3`:** Minimum consecutive `ADAPT` decisions required before retraining is executed, filtering out transient distributional noise.
 * **`HOLD_DURATION = 10`:** Hysteresis lockdown window. Once `HOLD` is engaged, adaptation remains locked for at least 10 consecutive timesteps, preventing trailing contaminated data from poisoning the baseline.
 
+### 5. Buffer Admission & Retraining Purity Gates
+* **`KEEP` Anomaly Admission Gate:** During steady-state (`KEEP`) or warmup, an incoming observation $x_t$ is admitted to the retraining buffer `buffer_X` only if it is predicted as normal ($pred == 0$) by the active model. Transient anomalous spikes are rejected, preventing early contamination from poisoning candidate adaptation windows.
+* **`ADAPT` Buffer Purity Gate:** When consecutive `ADAPT` signals trigger a candidate retrain, the complete candidate `buffer_X` is re-scored under the active model and current threshold. If the fraction of anomalous points in the buffer exceeds `ANOMALY_FRACTION_THRESHOLD` ($0.10$), retraining is aborted and the controller reverts to `HOLD` with full hysteresis countdown.
+
 ---
 
 ## 📊 Empirical Evaluation: Stage 8 Benchmark Results
@@ -85,20 +89,21 @@ The framework was benchmarked across all 4 architectural paradigms on the Skolte
 | **A (Stable Clean)** | 1. Static (Frozen) | 0.00% | 0.00% | 0.0000 | 5.20% | 0.00% | Clean |
 | **A (Stable Clean)** | 2. Naive Adaptive | 0.00% | 0.00% | 0.0000 | 0.58% | 0.00% | Clean |
 | **A (Stable Clean)** | 3. Threshold Adaptive | 0.00% | 0.00% | 0.0000 | 3.47% | 0.00% | Clean |
-| **A (Stable Clean)** | **4. SUS Controller (Ours)** | **0.00%** | **0.00%** | **0.0000** | **2.89%** | **0.00%** | **Clean Baseline** |
+| **A (Stable Clean)** | **4. SUS Controller (Ours)** | **0.00%** | **0.00%** | **0.0000** | **2.31%** | **0.00%** | **Clean Baseline** |
 | **B (Gradual Drift)** | 1. Static (Frozen) | 0.00% | 0.00% | 0.0000 | 6.36% ⚠️ | 0.00% | High False Alarms |
 | **B (Gradual Drift)** | 2. Naive Adaptive | 0.00% | 0.00% | 0.0000 | 1.73% | 0.00% | Blind Adaptation |
 | **B (Gradual Drift)** | 3. Threshold Adaptive | 0.00% | 0.00% | 0.0000 | 4.62% | 0.00% | Threshold Drift |
-| **B (Gradual Drift)** | **4. SUS Controller (Ours)** | **0.00%** | **0.00%** | **0.0000** | **2.89%** | **0.00%** | **Safe Gated ADAPT** |
+| **B (Gradual Drift)** | **4. SUS Controller (Ours)** | **0.00%** | **0.00%** | **0.0000** | **3.47%** | **0.00%** | **Safe Gated ADAPT** |
 | **D (Physical Fault)** | 1. Static (Frozen) | 61.27% | 21.70% | 0.3204 | 15.90% | 78.30% | Low Recall |
 | **D (Physical Fault)** | 2. Naive Adaptive | 80.00% | 4.99% | 0.0939 | 1.45% | **95.01% ❌** | **CATASTROPHIC CONTAMINATION** |
 | **D (Physical Fault)** | 3. Threshold Adaptive | 61.54% | 3.99% | 0.0749 | 2.89% | **96.01% ❌** | **Threshold Collapse** |
-| **D (Physical Fault)** | **4. SUS Controller (Ours)** | **55.95%** | **23.44%** | **0.3304** | **21.39%** | **76.56%** | **PROTECTED (HOLD Shield)** |
+| **D (Physical Fault)** | **4. SUS Controller (Ours)** | **57.99%** | **41.65%** | **0.4848** | **34.97%** | **58.35%** | **PROTECTED (Dual-Gated Shield)** |
 
 ### Critical Interpretation of Empirical Results:
 1. **The Contamination Collapse:** When exposed to real physical valve faults (Scenario D), continuous Naive Adaptive retrains on contaminated data, suffering a catastrophic **95.01% False Negative Rate** (missing 95% of real physical faults because the fault is normalized into the baseline).
-2. **SUS Contamination Resistance:** SUS locks down in `HOLD` across 69.2% of the active fault stream, preventing the baseline from absorbing contaminated data and maintaining the highest F1-Score (**0.3304**) and highest recall (**23.44%**) among all four systems.
-3. **Rigorous Context on False Negatives:** **SUS does not eliminate missed anomalies.** The underlying frozen Isolation Forest has an intrinsic detection limitation on raw SKAB physical faults (~21.7% base recall, meaning a 78.30% inherent False Negative Rate). SUS's specific achievement is **averting the severe degradation to 95.01% caused by anomaly contamination**, preserving the base model's capacity (FNR: 76.56%). Improving base detector sensitivity itself is an orthogonal challenge for future base-model feature engineering.
+2. **SUS Contamination Resistance:** SUS maintains the highest F1-Score (**0.4848**) and highest recall (**41.65%**) among all four systems, achieving a **58.35% FNR** compared to Naive's 95.01%.
+3. **Rigorous Context on False Negatives:** **SUS does not eliminate missed anomalies.** The underlying Isolation Forest has an intrinsic detection limitation on raw SKAB physical faults (~21.7% base recall). SUS's specific achievement is **resisting the severe degradation to 95.01% caused by anomaly contamination**, while doubling effective fault recall via clean, gated updates.
+4. **Post-Fault Regime & Identified Limitation:** In Scenario D, 100% of SUS false alarms (121 steps) occur after the physical fault ends (step 573 onwards). Physical valve manipulation induces a permanent mechanical equilibrium shift (two-sample KS distance = 1.0000). Because SUS prioritizes safety, it remains in `HOLD`, refusing to blindly normalize the shifted regime without operator confirmation. Implementing an automated, stationarity-verified post-fault recovery mechanism is documented as an academic limitation and future research direction.
 
 ---
 
@@ -171,27 +176,37 @@ Open your web browser and navigate to:
 
 ## 🧪 Reproducing Experiments & Benchmark Evaluations
 
-All experimental scripts are self-contained in the `experiments/` directory:
+All experimental test suites and benchmark scripts are located in `experiments/`:
 
-* **Run Full Stage 8 Four-System Benchmark:**
+* **1. Run Full Stage 8 Four-System Benchmark:**
   ```bash
   python experiments/stage8_final_evaluation.py
   ```
-  *(Outputs results to `results/tables/stage8_four_systems_comparison.csv`)*
+  *(Generates `results/tables/stage8_four_systems_comparison.csv`)*
 
-* **Run End-to-End System Integrity & Contamination Test:**
+* **2. Run Independent Benchmark Integrity & Reproducibility Audit (3 Runs Bit-for-Bit):**
+  ```bash
+  python experiments/audit_benchmark_integrity.py
+  ```
+
+* **3. Run Controller Unit Test Suite:**
+  ```bash
+  python experiments/test_controller_unit.py
+  ```
+
+* **4. Run SUS Detector Correctness Suite (Model Versioning & HOLD Exclusion):**
+  ```bash
+  python experiments/test_detector_correctness.py
+  ```
+
+* **5. Run Training Buffer Integrity Suite (KEEP Gate & ADAPT Purity Check):**
+  ```bash
+  python experiments/test_buffer_integrity.py
+  ```
+
+* **6. Run End-to-End System Integrity & Dashboard API Test:**
   ```bash
   python experiments/test_system_integrity.py
-  ```
-
-* **Run Sequential Drift Calibration:**
-  ```bash
-  python experiments/calibrate.py
-  ```
-
-* **Verify UI & DOM Consistency:**
-  ```bash
-  python experiments/test_ui_consistency.py
   ```
 
 ---
