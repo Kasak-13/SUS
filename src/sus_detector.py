@@ -36,6 +36,7 @@ class SUSDetector:
         self.last_pred = 0
         self.last_threshold = self.anomaly_threshold
         self.last_decision = None
+        self.retrain_count = 0
         
     def fit(self, X):
         self.buffer_X = list(X[-self.window_size:])
@@ -48,6 +49,7 @@ class SUSDetector:
         self.anomaly_threshold = float(np.percentile(scores, 99))
         # Update controller's threshold to match the newly fitted model
         self.controller.anomaly_threshold = self.anomaly_threshold
+        self.retrain_count += 1
         
     def update_and_predict(self, x, return_pred=False):
         # 1. Predict with current model (strictly prior to any adaptation)
@@ -68,16 +70,39 @@ class SUSDetector:
             # Maintain controller's rolling anomaly buffer during warmup via encapsulated API
             self.controller.record_observation(score)
                 
-        # 4. Safeguard training buffer: exclude contaminated observations during HOLD
-        if decision != 'HOLD':
+        # 4. Safeguard training buffer: admission gates & purity verification
+        should_admit = False
+        if decision == 'HOLD':
+            should_admit = False
+        elif decision == 'KEEP' or decision is None:
+            # Part A: KEEP anomaly admission gate (admit only when pred == 0)
+            should_admit = (pred == 0)
+        elif decision == 'ADAPT':
+            # Part B: ADAPT buffer purity gate
+            # Evaluate candidate buffer using active model and current threshold
+            candidate_X = np.array(self.buffer_X)
+            candidate_scores = -self.model.score_samples(candidate_X)
+            candidate_anom_frac = float(np.mean(candidate_scores > current_threshold))
+            
+            if candidate_anom_frac <= self.controller.anomaly_fraction_threshold:
+                # Buffer is pure: admit observation and permit retraining
+                should_admit = True
+                self.buffer_X.append(x)
+                if len(self.buffer_X) > self.window_size:
+                    self.buffer_X.pop(0)
+                self._retrain()
+            else:
+                # Contamination detected: abort retraining
+                # Safe fallback: override decision to HOLD and engage lockdown
+                decision = 'HOLD'
+                self.controller.hold_countdown = self.controller.hold_duration
+                self.controller.consecutive_adapt = 0
+                should_admit = False
+                
+        if should_admit and decision != 'ADAPT':
             self.buffer_X.append(x)
             if len(self.buffer_X) > self.window_size:
                 self.buffer_X.pop(0)
-            
-        # 5. Execute decision
-        if decision == 'ADAPT':
-            # Execute retraining upon approved ADAPT decision
-            self._retrain()
             
         # Store state of the observation
         self.last_score = score
