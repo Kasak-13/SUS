@@ -21,14 +21,21 @@ class SUSController:
         self.min_consecutive = getattr(config, 'MIN_CONSECUTIVE_OBSERVATIONS', 3)
         self.hold_duration = getattr(config, 'HOLD_DURATION', 10)
         
+    def record_observation(self, anomaly_score):
+        """
+        Records an anomaly score into the rolling window buffer.
+        Maintains the sliding window size constraint.
+        """
+        self.anomaly_buffer.append(anomaly_score)
+        if len(self.anomaly_buffer) > self.window_size:
+            self.anomaly_buffer.pop(0)
+            
     def decide(self, anomaly_score, drift_score, state=None):
         """
         Implements the 4-quadrant policy to select an adaptation action.
         Returns one of: 'KEEP', 'ADAPT', 'HOLD'
         """
-        self.anomaly_buffer.append(anomaly_score)
-        if len(self.anomaly_buffer) > self.window_size:
-            self.anomaly_buffer.pop(0)
+        self.record_observation(anomaly_score)
             
         if len(self.anomaly_buffer) < self.window_size:
             return None

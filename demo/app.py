@@ -72,7 +72,7 @@ def run_all_detectors_stream(X_stream, y_stream):
         
         # 4. SUS
         score_sus, decision_sus = sus_det.update_and_predict(x)
-        pred_sus = int(score_sus > sus_det.anomaly_threshold)
+        pred_sus = int(sus_det.last_pred)
         drift_score = float(sus_det.last_drift_score)
         
         # Calculate anomaly fraction

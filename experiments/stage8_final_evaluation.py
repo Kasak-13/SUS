@@ -70,8 +70,8 @@ def run_four_systems(X_train, X_stream, y_stream, scenario_name):
     preds_sus = []
     for x in X_stream:
         score, decision = sus.update_and_predict(x)
-        # SUS flags anomaly if score exceeds its protected threshold
-        preds_sus.append(int(score > sus.anomaly_threshold))
+        # SUS prediction evaluated with the model version that scored the observation
+        preds_sus.append(int(sus.last_pred))
     results.append({**{'Scenario': scenario_name}, **evaluate_predictions(y_stream, preds_sus, time.time() - t0, '4. SUS Controller (Ours)')})
     
     return results
